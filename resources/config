@@ -1,0 +1,13 @@
+[default]
+region = ap-northeast-2
+output = json
+
+[profile topzone-k8s]
+#source_profile=topzone-k8s
+region = ap-northeast-2
+output = json
+
+[profile default_admin_role]
+source_profile=default
+role_arn=arn:aws:iam::0:role/AdminRole
+

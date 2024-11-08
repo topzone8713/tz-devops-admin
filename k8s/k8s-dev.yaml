@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-admin-${GIT_BRANCH}
+spec:
+  selector:
+    matchLabels:
+      app: devops-admin-${GIT_BRANCH}
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        org: tz
+        team: devops
+        project: admin
+        environment: ${STAGING}
+        app: devops-admin-${GIT_BRANCH}
+    spec:
+      imagePullSecrets:
+        - name: registry-creds
+      containers:
+      - name: devops-admin-${GIT_BRANCH}
+        image: ${REPOSITORY_TAG}
+        imagePullPolicy: Always
+#        readinessProbe:
+#          httpGet:
+#            path: /health
+#            port: 8000
+        resources:
+          requests:
+            cpu: 500m
+            memory: 500Mi
+          limits:
+            cpu: 1000m
+            memory: 1000Mi
+        envFrom:
+        - configMapRef:
+            name: devops-admin-configmap
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-admin-${GIT_BRANCH}
+spec:
+  type: NodePort
+  selector:
+    app: devops-admin-${GIT_BRANCH}
+  ports:
+    - port: 80
+      name: api-80
+      targetPort: 8000
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devops-admin-configmap
+data:
+  GIT_BRANCH: ${GIT_BRANCH}
+  DB_HOSTNAME: host.docker.internal
+  DB_R_HOSTNAME: host.docker.internal
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: devops-admin-${GIT_BRANCH}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  rules:
+  - host: ${GIT_BRANCH}-admin.devops-dev.${CLUSTER_NAME}.${DOMAIN}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: devops-admin-${GIT_BRANCH}
+            port:
+              number: 80
+  tls:
+    - hosts:
+        - ${GIT_BRANCH}-admin.devops-dev.${CLUSTER_NAME}.${DOMAIN}
+      secretName: devops-admin-${GIT_BRANCH}
+

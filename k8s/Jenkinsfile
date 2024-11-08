@@ -1,0 +1,187 @@
+pipeline {
+
+    environment {
+        // Git Repository Information
+        GITHUP_ID = "topzone8713"
+        GIT_URL = "https://github.com/${GITHUP_ID}/tz-devops-admin.git"
+        GIT_BRANCH = "devops"
+        GIT_COMMITTER_EMAIL = "topzone8713@gmail.com"
+
+        // Docker and Application Configuration
+        BUILD_NUMBER = "${env.BUILD_NUMBER}"
+        DOCKER_NAME = "tz-devops-admin"
+        APP_NAME = "tz-devops-admin"
+        NAMESPACE = "devops"
+        K8S_SOURCE = "${env.BRANCH_NAME == "main" ? "k8s.yaml" : env.BRANCH_NAME == "qa" ? "k8s-qa.yaml" : "k8s-dev.yaml"}"
+        STAGING = "${env.BRANCH_NAME == "main" ? "prod" : env.BRANCH_NAME == "qa" ? "qa" : "dev"}"
+        NODE_ENV = "development"
+        K8S_FILE = "k8s.yaml"
+        USE_ARGOCD = "true"
+
+        // AWS and Kubernetes Configuration
+        ACCOUNT_ID = "084828581538"
+        AWS_DEFAULT_REGION = "ap-northeast-2"
+        DOMAIN = "topzone.me"
+        CLUSTER_NAME = "topzone-k8s"
+        CERTIFICATE="aaaaaa"
+
+        KUBECTL = "kubectl -n ${NAMESPACE} --kubeconfig /var/lib/jenkins/.kube/sl_${CLUSTER_NAME}"
+        AWS_ACCESS_KEY_ID = credentials('jenkins-aws-secret-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('jenkins-aws-secret-access-key')
+
+        GIT_CREDENTIAL = 'github-token'
+        GITHUP_TOKEN = credentials('GITHUP_TOKEN')
+        VAULT_TOKEN = credentials('vault_token')
+        ARGOCD_ID = "admin"
+        ARGOCD_PASSWORD = credentials('argocd_password')
+
+        WORKSPACE= "/home/jenkins/agent/workspace/${APP_NAME}"
+        REPOSITORY_TAG = "${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${DOCKER_NAME}:${BUILD_NUMBER}"
+    }
+
+    agent {
+        kubernetes {
+            defaultContainer "devops2"
+            yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  name: devopsBuild
+spec:
+  serviceAccountName: jenkins
+  containers:
+  - name: devops2
+    image: topzone8713/devops-utils2:latest
+    resources:
+      requests:
+        memory: 500Mi
+        cpu: "500m"
+      limits:
+        memory: 1Gi
+        cpu: "1000m"
+    tty: true
+    command: ["sleep"]
+    args: ["99d"]
+    volumeMounts:
+      - name: shared-data
+        mountPath: /root/shared-data
+
+  - name: kaniko2
+    image: gcr.io/kaniko-project/executor:v1.7.0-debug
+    imagePullPolicy: Always
+    resources:
+      requests:
+        memory: 500Mi
+        cpu: "500m"
+      limits:
+        memory: 2Gi
+        cpu: "2000m"
+    env:
+      - name: AWS_SDK_LOAD_CONFIG
+        value: "true"
+    tty: true
+    command: ["sleep"]
+    args: ["99d"]
+    volumeMounts:
+      - name: shared-data
+        mountPath: /root/shared-data
+      - name: docker-config
+        mountPath: /root/.docker
+      - name: aws-secret
+        mountPath: /root/.aws/
+
+  restartPolicy: Never
+  volumes:
+    - name: shared-data
+      emptyDir: {}
+    - name: docker-config
+      configMap:
+        name: docker-config
+    - name: aws-secret
+      secret:
+        secretName: aws-secret
+            """
+        }
+    }
+
+    stages {
+        stage("Git SCM") {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: GIT_BRANCH]],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [],
+                    userRemoteConfigs: [[
+                        url: GIT_URL,
+                        credentialsId: GIT_CREDENTIAL
+                    ]]
+                ])
+            }
+        }
+
+        stage('Prep') {
+            steps {
+                dir("${workspace}") {
+                    script {
+                        sh "rm -rf ./${K8S_FILE}"
+                        sh "cp -Rp k8s/${K8S_SOURCE} ./${K8S_FILE}"
+                        sh "cp -Rp /home/jenkins/agent/workspace/${DOCKER_NAME} /root/shared-data/${DOCKER_NAME}"
+                        sh "bash ./k8s/k8s.sh vault_config devops-dev/tz-devops-admin"
+                        sh "cp -Rf .env /root/shared-data/tz-devops-admin/.env"
+                    }
+                }
+            }
+        }
+
+        stage('Building & Pushing') {
+            parallel {
+                stage("Build and Push images") {
+                    steps {
+                        container("kaniko2") {
+                            script {
+                                sh "/kaniko/executor --dockerfile=Dockerfile --context=/root/shared-data/${DOCKER_NAME} --build-arg NODE_ENV=${NODE_ENV} --destination=${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com/${DOCKER_NAME}:${env.BUILD_NUMBER} --use-new-run --cleanup"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy the service to Cluster') {
+            steps {
+                container("devops2") {
+                    sh "bash ./k8s/k8s.sh apply"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                env.GIT_COMMIT_MSG = sh(script: 'git log -1 --pretty=%B ${GIT_COMMIT}', returnStdout: true).trim()
+                env.GIT_AUTHOR = sh(script: 'git log -1 --pretty=%cn ${GIT_COMMIT}', returnStdout: true).trim()
+                env.GIT_COMMIT_EMAIL = sh(script: 'git log --format="%ae" | head -1', returnStdout: true).trim()
+            }
+            emailext(
+                subject: "Jenkins Build ${currentBuild.currentResult}: Job ${env.JOB_NAME} ( ${GIT_AUTHOR} )",
+                body: """
+                    <p> Build on Job:
+                    <a style = "font-size:14px;text-decoration:underline;font-weight:bold" href="${env.BUILD_URL}/console">
+                    ${currentBuild.fullDisplayName}</a></p>
+                    <p>
+                        ${env.GIT_COMMIT_MSG}
+                    </p
+                    <p>
+                    </p>
+                """
+                , mimeType: 'text/html'
+                , attachLog: true
+                , to: "${GIT_COMMIT_EMAIL}"
+            )
+        }
+    }
+}
+
+

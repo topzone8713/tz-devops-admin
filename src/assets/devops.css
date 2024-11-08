@@ -1,0 +1,14 @@
+label {
+    font-weight: 700;
+}
+.a-link {
+    color: #007bff;
+    text-decoration: none;
+    background-color: transparent;
+    cursor: pointer;
+    margin-bottom: 0px;
+}
+
+div > div.col-sm-8 > label > h4 {
+    margin-bottom: 0px;
+}
