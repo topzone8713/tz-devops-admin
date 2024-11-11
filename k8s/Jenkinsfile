@@ -122,7 +122,7 @@ spec:
 
         stage('Prep') {
             steps {
-                dir("${workspace}") {
+                container("devops2") {
                     script {
                         sh "rm -rf ./${K8S_FILE}"
                         sh "cp -Rp k8s/${K8S_SOURCE} ./${K8S_FILE}"
