@@ -33,7 +33,7 @@ pipeline {
         GITHUP_TOKEN = credentials('GITHUP_TOKEN')
         VAULT_TOKEN = credentials('vault_token')
         ARGOCD_ID = "admin"
-        ARGOCD_PASSWORD = credentials('argocd_password')
+        ARGOCD_PASSWORD = "DevOps!323"
 
         WORKSPACE= "/home/jenkins/agent/workspace/${APP_NAME}"
         REPOSITORY_TAG = "${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${DOCKER_NAME}:${BUILD_NUMBER}"
