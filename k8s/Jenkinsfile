@@ -4,7 +4,7 @@ pipeline {
         // Git Repository Information
         GITHUP_ID = "topzone8713"
         GIT_URL = "https://github.com/${GITHUP_ID}/tz-devops-admin.git"
-        GIT_BRANCH = "devops"
+        GIT_BRANCH = "devops2"
         GIT_COMMITTER_EMAIL = "topzone8713@gmail.com"
 
         // Docker and Application Configuration
@@ -19,7 +19,7 @@ pipeline {
         USE_ARGOCD = "true"
 
         // AWS and Kubernetes Configuration
-        ACCOUNT_ID = "084828581538"
+        ACCOUNT_ID = "596627550572"
         AWS_DEFAULT_REGION = "ap-northeast-2"
         DOMAIN = "topzone.me"
         CLUSTER_NAME = "topzone-k8s"
@@ -122,7 +122,7 @@ spec:
 
         stage('Prep') {
             steps {
-                dir("${workspace}") {
+                container("devops2") {
                     script {
                         sh "rm -rf ./${K8S_FILE}"
                         sh "cp -Rp k8s/${K8S_SOURCE} ./${K8S_FILE}"

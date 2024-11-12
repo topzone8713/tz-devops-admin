@@ -23,7 +23,7 @@ tz-devops-admin은 `tz-eks-main`으로 구성된 Kubernetes 클러스터를 관�
   password=DevOps!323
   dev=developer
   dev_password=Dev!323
-  aws_account_id=084828581538     => 수정 필요
+  aws_account_id=596627550572     => 수정 필요
   aws_region=ap-northeast-2
   ```
 
