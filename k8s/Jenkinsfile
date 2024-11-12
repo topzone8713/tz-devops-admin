@@ -19,7 +19,7 @@ pipeline {
         USE_ARGOCD = "true"
 
         // AWS and Kubernetes Configuration
-        ACCOUNT_ID = "084828581538"
+        ACCOUNT_ID = "596627550572"
         AWS_DEFAULT_REGION = "ap-northeast-2"
         DOMAIN = "topzone.me"
         CLUSTER_NAME = "topzone-k8s"
